@@ -9,6 +9,7 @@ import mongoose from 'mongoose'
 import SessionalMarks from '../models/SessionalMarks.js'
 import TimetableEntry from '../models/TimetableEntry.js'
 import Notification from '../models/Notification.js'
+import StudentRequest from '../models/StudentRequest.js'
 import User from '../models/User.js'
 
 const subjectKey = (subject) => `${subject.code}-${subject.semester}-${subject.field}`
@@ -873,6 +874,64 @@ export const markAllTeacherNotificationsRead = async (req, res) => {
   } catch (error) {
     console.error('MARK ALL NOTIFICATIONS READ ERROR:', error)
     res.status(500).json({ message: 'Unable to update notifications' })
+  }
+}
+
+const requestScopes = (assignments) => [...new Set(assignments.map((assignment) => `${assignment.semester}-${assignment.field}`))]
+
+export const getTeacherRequests = async (req, res) => {
+  try {
+    const { status, type } = req.query
+    if (status && !['Pending', 'Approved', 'Rejected'].includes(status)) return res.status(400).json({ message: 'Invalid request status' })
+    if (type && !['attendance_correction', 'assignment_extension', 'academic'].includes(type)) return res.status(400).json({ message: 'Invalid request type' })
+    const teacher = await User.findById(req.user.id).select('assignedSubjects').lean()
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    const scope = requestScopes(teacher.assignedSubjects || []).map((item) => {
+      const [semester, field] = item.split('-')
+      return { semester: Number(semester), field }
+    })
+    if (!scope.length) return res.json([])
+    const query = { $or: scope }
+    if (status) query.status = status
+    if (type) query.type = type
+    const requests = await StudentRequest.find(query).populate('student', 'name rollNo email').sort({ createdAt: -1 }).lean()
+    res.json(requests.map((request) => ({
+      id: request._id, type: request.type, title: request.title, details: request.details, status: request.status,
+      teacherNote: request.teacherNote, semester: request.semester, field: request.field, subject: request.subject,
+      createdAt: request.createdAt, reviewedAt: request.reviewedAt,
+      student: request.student ? { id: request.student._id, name: request.student.name, rollNo: request.student.rollNo, email: request.student.email } : null,
+    })))
+  } catch (error) {
+    console.error('TEACHER REQUESTS ERROR:', error)
+    res.status(500).json({ message: 'Unable to load student requests' })
+  }
+}
+
+export const reviewTeacherRequest = async (req, res) => {
+  try {
+    const { requestId } = req.params
+    const { status, teacherNote } = req.body
+    if (!mongoose.isValidObjectId(requestId)) return res.status(400).json({ message: 'Invalid request ID' })
+    if (!['Approved', 'Rejected'].includes(status)) return res.status(400).json({ message: 'Choose Approved or Rejected' })
+    const note = typeof teacherNote === 'string' ? teacherNote.trim() : ''
+    if (note.length > 2000) return res.status(400).json({ message: 'Teacher note must be 2000 characters or fewer' })
+    const [teacher, request] = await Promise.all([
+      User.findById(req.user.id).select('assignedSubjects').lean(),
+      StudentRequest.findById(requestId),
+    ])
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    if (!request) return res.status(404).json({ message: 'Request not found' })
+    const authorised = (teacher.assignedSubjects || []).some((assignment) => assignment.semester === request.semester && assignment.field === request.field)
+    if (!authorised) return res.status(403).json({ message: 'You are not authorised to review this request' })
+    request.status = status
+    request.teacherNote = note
+    request.reviewedBy = req.user.id
+    request.reviewedAt = new Date()
+    await request.save()
+    res.json({ message: `Request ${status.toLowerCase()}` })
+  } catch (error) {
+    console.error('REVIEW TEACHER REQUEST ERROR:', error)
+    res.status(500).json({ message: 'Unable to review request' })
   }
 }
 

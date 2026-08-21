@@ -8,6 +8,7 @@ const navigation = [
   ['Timetable', '/teacher/timetable', 'calendar'],
   ['Announcements', '/teacher/announcements', 'bell'],
   ['Notifications', '/teacher/notifications', 'bell'],
+  ['Requests', '/teacher/requests', 'book'],
   ['Attendance', '/teacher/attendance', 'calendar'],
   ['Sessional Marks', '/teacher/marks', 'chart'],
   ['My Profile', '/teacher/profile', 'user'],

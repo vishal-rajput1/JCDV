@@ -27,11 +27,13 @@ import {
   markAllTeacherNotificationsRead,
   markTeacherNotificationRead,
   reviewAssignmentSubmission,
+  reviewTeacherRequest,
   saveAttendance,
   saveSessionalMarks,
   updateTeacherAssignment,
   updateTeacherAnnouncement,
   updateTeacherProfile,
+  getTeacherRequests,
 } from '../controllers/teacherController.js'
 
 const router = express.Router()
@@ -65,6 +67,8 @@ router.patch('/announcements/:announcementId/publish', protect, authorize('teach
 router.get('/notifications', protect, authorize('teacher'), getTeacherNotifications)
 router.put('/notifications/read-all', protect, authorize('teacher'), markAllTeacherNotificationsRead)
 router.put('/notifications/:notificationId/read', protect, authorize('teacher'), markTeacherNotificationRead)
+router.get('/requests', protect, authorize('teacher'), getTeacherRequests)
+router.put('/requests/:requestId', protect, authorize('teacher'), reviewTeacherRequest)
 router.put('/profile', protect, authorize('teacher'), updateTeacherProfile)
 router.put('/profile/password', protect, authorize('teacher'), changeTeacherPassword)
 
