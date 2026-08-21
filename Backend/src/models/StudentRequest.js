@@ -2,6 +2,7 @@ import mongoose from 'mongoose'
 
 const studentRequestSchema = new mongoose.Schema({
   student: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   subjectAssignment: { type: mongoose.Schema.Types.ObjectId },
   subject: { type: String, trim: true },
   semester: { type: Number, required: true },

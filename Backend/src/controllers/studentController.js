@@ -177,3 +177,45 @@ export const getStudentAnnouncements = async (req, res) => {
     res.status(500).json({ message: 'Unable to load announcements' })
   }
 }
+
+export const getStudentRequestSubjects = async (req, res) => {
+  try {
+    const student = await User.findById(req.user.id).select('semester field')
+    if (!student) return res.status(404).json({ message: 'Student not found' })
+    const teachers = await User.find({ role: 'teacher', assignedSubjects: { $elemMatch: { semester: student.semester, field: student.field } } })
+      .select('name department assignedSubjects').lean()
+    res.json(teachers.flatMap((teacher) => teacher.assignedSubjects
+      .filter((subject) => subject.semester === student.semester && subject.field === student.field)
+      .map((subject) => ({ teacherId: teacher._id, teacherName: teacher.name, department: teacher.department, subjectId: subject._id, name: subject.name, code: subject.code, semester: subject.semester, field: subject.field }))))
+  } catch (error) {
+    console.error('STUDENT REQUEST SUBJECTS ERROR:', error)
+    res.status(500).json({ message: 'Unable to load request subjects' })
+  }
+}
+
+export const createStudentRequest = async (req, res) => {
+  try {
+    const { subjectId, type, title, details } = req.body
+    if (!mongoose.isValidObjectId(subjectId) || !['attendance_correction', 'assignment_extension', 'academic'].includes(type) || !title?.trim() || !details?.trim()) {
+      return res.status(400).json({ message: 'Choose a subject and provide a valid request type, title, and details' })
+    }
+    const student = await User.findById(req.user.id).select('name rollNo semester field')
+    if (!student) return res.status(404).json({ message: 'Student not found' })
+    const teacher = await User.findOne({ role: 'teacher', 'assignedSubjects._id': subjectId }).select('name notificationsEnabled assignedSubjects')
+    const subject = teacher?.assignedSubjects.id(subjectId)
+    if (!teacher || !subject || subject.semester !== student.semester || subject.field !== student.field) {
+      return res.status(403).json({ message: 'This subject is not available for your academic group' })
+    }
+    const request = await StudentRequest.create({
+      student: student._id, teacher: teacher._id, subjectAssignment: subject._id, subject: subject.name,
+      semester: student.semester, field: student.field, type, title: title.trim(), details: details.trim(),
+    })
+    if (teacher.notificationsEnabled !== false) {
+      await Notification.create({ recipient: teacher._id, type: 'student_request', title: `New student request: ${title.trim()}`, message: `${student.name}${student.rollNo ? ` (${student.rollNo})` : ''} submitted a request for ${subject.name}.`, referenceType: 'StudentRequest', referenceId: request._id })
+    }
+    res.status(201).json({ message: 'Request submitted successfully' })
+  } catch (error) {
+    console.error('CREATE STUDENT REQUEST ERROR:', error)
+    res.status(500).json({ message: 'Unable to submit request' })
+  }
+}

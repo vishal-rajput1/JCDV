@@ -11,6 +11,7 @@ import SessionalMarks from './pages/student/SessionalMarks'
 import UniversityResult from './pages/student/UniversityResult'
 import StudentAssignments from './pages/student/Assignments'
 import StudentAnnouncements from './pages/student/Announcements'
+import StudentRequests from './pages/student/Requests'
 import TeacherSidebar from './components/TeacherSidebar'
 import TeacherDashboard from './pages/teacher/TeacherDashboard'
 import TeacherProfile from './pages/teacher/TeacherProfile'
@@ -65,6 +66,7 @@ function StudentLayout() {
             />
             <Route path="/assignments" element={<StudentAssignments />} />
             <Route path="/announcements" element={<StudentAnnouncements />} />
+            <Route path="/requests" element={<StudentRequests />} />
 
           </Routes>
 

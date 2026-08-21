@@ -10,7 +10,9 @@ import {
   getSessionalMarks,
   getStudentAnnouncements,
   getStudentAssignments,
+  getStudentRequestSubjects,
   submitStudentAssignment,
+  createStudentRequest,
 } from '../controllers/studentController.js'
 
 const router = express.Router()
@@ -45,6 +47,8 @@ router.get(
 router.get('/assignments', protect, authorize('student'), getStudentAssignments)
 router.post('/assignments/submit', protect, authorize('student'), submitStudentAssignment)
 router.get('/announcements', protect, authorize('student'), getStudentAnnouncements)
+router.get('/request-subjects', protect, authorize('student'), getStudentRequestSubjects)
+router.post('/requests', protect, authorize('student'), createStudentRequest)
 
 
 export default router

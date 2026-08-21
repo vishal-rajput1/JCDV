@@ -884,14 +884,9 @@ export const getTeacherRequests = async (req, res) => {
     const { status, type } = req.query
     if (status && !['Pending', 'Approved', 'Rejected'].includes(status)) return res.status(400).json({ message: 'Invalid request status' })
     if (type && !['attendance_correction', 'assignment_extension', 'academic'].includes(type)) return res.status(400).json({ message: 'Invalid request type' })
-    const teacher = await User.findById(req.user.id).select('assignedSubjects').lean()
+    const teacher = await User.findById(req.user.id).select('_id').lean()
     if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
-    const scope = requestScopes(teacher.assignedSubjects || []).map((item) => {
-      const [semester, field] = item.split('-')
-      return { semester: Number(semester), field }
-    })
-    if (!scope.length) return res.json([])
-    const query = { $or: scope }
+    const query = { teacher: teacher._id }
     if (status) query.status = status
     if (type) query.type = type
     const requests = await StudentRequest.find(query).populate('student', 'name rollNo email').sort({ createdAt: -1 }).lean()
@@ -916,13 +911,12 @@ export const reviewTeacherRequest = async (req, res) => {
     const note = typeof teacherNote === 'string' ? teacherNote.trim() : ''
     if (note.length > 2000) return res.status(400).json({ message: 'Teacher note must be 2000 characters or fewer' })
     const [teacher, request] = await Promise.all([
-      User.findById(req.user.id).select('assignedSubjects').lean(),
+      User.findById(req.user.id).select('_id').lean(),
       StudentRequest.findById(requestId),
     ])
     if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
     if (!request) return res.status(404).json({ message: 'Request not found' })
-    const authorised = (teacher.assignedSubjects || []).some((assignment) => assignment.semester === request.semester && assignment.field === request.field)
-    if (!authorised) return res.status(403).json({ message: 'You are not authorised to review this request' })
+    if (String(request.teacher) !== String(teacher._id)) return res.status(403).json({ message: 'You are not authorised to review this request' })
     request.status = status
     request.teacherNote = note
     request.reviewedBy = req.user.id
