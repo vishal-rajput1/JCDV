@@ -8,6 +8,7 @@ import {
   getAttendanceHistory,
   getAttendanceHistoryRecord,
   getTeacherDashboard,
+  getTeacherAssignmentSubmissions,
   getTeacherAssignments,
   getTeacherProfile,
   getTeacherSubjectById,
@@ -17,6 +18,7 @@ import {
   getSessionalRoster,
   publishSessionalMarks,
   publishTeacherAssignment,
+  reviewAssignmentSubmission,
   saveAttendance,
   saveSessionalMarks,
   updateTeacherAssignment,
@@ -43,6 +45,8 @@ router.post('/assignments', protect, authorize('teacher'), createTeacherAssignme
 router.put('/assignments/:assignmentId', protect, authorize('teacher'), updateTeacherAssignment)
 router.delete('/assignments/:assignmentId', protect, authorize('teacher'), deleteTeacherAssignment)
 router.patch('/assignments/:assignmentId/publish', protect, authorize('teacher'), publishTeacherAssignment)
+router.get('/assignments/:assignmentId/submissions', protect, authorize('teacher'), getTeacherAssignmentSubmissions)
+router.put('/submissions/:submissionId', protect, authorize('teacher'), reviewAssignmentSubmission)
 router.put('/profile', protect, authorize('teacher'), updateTeacherProfile)
 router.put('/profile/password', protect, authorize('teacher'), changeTeacherPassword)
 

@@ -1,6 +1,7 @@
 import Attendance from '../models/Attendance.js'
 import AttendanceRecord from '../models/AttendanceRecord.js'
 import Assignment from '../models/Assignment.js'
+import AssignmentSubmission from '../models/AssignmentSubmission.js'
 import bcrypt from 'bcryptjs'
 import { FIELDS } from '../constants/academic.js'
 import mongoose from 'mongoose'
@@ -652,6 +653,59 @@ export const publishTeacherAssignment = async (req, res) => {
   } catch (error) {
     console.error('PUBLISH ASSIGNMENT ERROR:', error)
     res.status(500).json({ message: 'Unable to publish assignment' })
+  }
+}
+
+export const getTeacherAssignmentSubmissions = async (req, res) => {
+  try {
+    const { assignmentId } = req.params
+    if (!mongoose.isValidObjectId(assignmentId)) return res.status(400).json({ message: 'Invalid assignment ID' })
+    const assignment = await Assignment.findOne({ _id: assignmentId, teacher: req.user.id }).lean()
+    if (!assignment) return res.status(404).json({ message: 'Assignment not found' })
+    const students = await User.find({ role: 'student', semester: assignment.semester, field: assignment.field })
+      .select('name rollNo email').sort({ name: 1 }).lean()
+    const submissions = await AssignmentSubmission.find({ assignment: assignment._id }).lean()
+    const submissionsByStudent = new Map(submissions.map((submission) => [String(submission.student), submission]))
+    const deadline = new Date(assignment.deadline)
+    const studentSubmissions = students.map((student) => {
+      const submission = submissionsByStudent.get(String(student._id))
+      if (!submission) return { studentId: student._id, name: student.name, rollNo: student.rollNo, email: student.email, status: 'Pending', submissionId: null, submittedAt: null, marks: null, feedback: '', attachmentUrl: '' }
+      const late = new Date(submission.submittedAt) > deadline
+      return {
+        studentId: student._id, name: student.name, rollNo: student.rollNo, email: student.email, submissionId: submission._id,
+        submittedAt: submission.submittedAt, attachmentUrl: submission.attachmentUrl, marks: submission.marks ?? null, feedback: submission.feedback || '',
+        status: submission.status === 'Reviewed' ? 'Reviewed' : late ? 'Late' : 'Submitted',
+      }
+    })
+    res.json({ assignment: serialiseAssignment(assignment), submissions: studentSubmissions })
+  } catch (error) {
+    console.error('ASSIGNMENT SUBMISSIONS ERROR:', error)
+    res.status(500).json({ message: 'Unable to load assignment submissions' })
+  }
+}
+
+export const reviewAssignmentSubmission = async (req, res) => {
+  try {
+    const { submissionId } = req.params
+    if (!mongoose.isValidObjectId(submissionId)) return res.status(400).json({ message: 'Invalid submission ID' })
+    const submission = await AssignmentSubmission.findById(submissionId)
+    if (!submission) return res.status(404).json({ message: 'Submission not found' })
+    const assignment = await Assignment.findOne({ _id: submission.assignment, teacher: req.user.id })
+    if (!assignment) return res.status(403).json({ message: 'You are not authorised to review this submission' })
+    const marks = Number(req.body.marks)
+    if (!Number.isFinite(marks) || marks < 0 || marks > assignment.maximumMarks) {
+      return res.status(400).json({ message: `Marks must be between 0 and ${assignment.maximumMarks}` })
+    }
+    const feedback = typeof req.body.feedback === 'string' ? req.body.feedback.trim() : ''
+    if (feedback.length > 3000) return res.status(400).json({ message: 'Feedback must be 3000 characters or fewer' })
+    submission.marks = marks
+    submission.feedback = feedback
+    submission.status = 'Reviewed'
+    await submission.save()
+    res.json({ message: 'Submission reviewed successfully' })
+  } catch (error) {
+    console.error('REVIEW SUBMISSION ERROR:', error)
+    res.status(500).json({ message: 'Unable to review submission' })
   }
 }
 
