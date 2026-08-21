@@ -15,6 +15,7 @@ import {
   getTeacherSubjects,
   getTeacherStudentById,
   getTeacherStudents,
+  getTeacherTimetable,
   getSessionalRoster,
   publishSessionalMarks,
   publishTeacherAssignment,
@@ -47,6 +48,7 @@ router.delete('/assignments/:assignmentId', protect, authorize('teacher'), delet
 router.patch('/assignments/:assignmentId/publish', protect, authorize('teacher'), publishTeacherAssignment)
 router.get('/assignments/:assignmentId/submissions', protect, authorize('teacher'), getTeacherAssignmentSubmissions)
 router.put('/submissions/:submissionId', protect, authorize('teacher'), reviewAssignmentSubmission)
+router.get('/timetable', protect, authorize('teacher'), getTeacherTimetable)
 router.put('/profile', protect, authorize('teacher'), updateTeacherProfile)
 router.put('/profile/password', protect, authorize('teacher'), changeTeacherPassword)
 

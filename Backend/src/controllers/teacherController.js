@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs'
 import { FIELDS } from '../constants/academic.js'
 import mongoose from 'mongoose'
 import SessionalMarks from '../models/SessionalMarks.js'
+import TimetableEntry from '../models/TimetableEntry.js'
 import User from '../models/User.js'
 
 const subjectKey = (subject) => `${subject.code}-${subject.semester}-${subject.field}`
@@ -706,6 +707,30 @@ export const reviewAssignmentSubmission = async (req, res) => {
   } catch (error) {
     console.error('REVIEW SUBMISSION ERROR:', error)
     res.status(500).json({ message: 'Unable to review submission' })
+  }
+}
+
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+export const getTeacherTimetable = async (req, res) => {
+  try {
+    const entries = await TimetableEntry.find({ teacher: req.user.id }).sort({ startTime: 1 }).lean()
+    const dayIndex = (new Date().getDay() + 6) % 7
+    const today = WEEKDAYS[dayIndex]
+    const now = new Date()
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    const todaysClasses = entries.filter((entry) => entry.day === today)
+    const nextClass = todaysClasses.find((entry) => entry.endTime >= currentTime) || null
+    res.json({
+      days: WEEKDAYS,
+      entries: entries.map((entry) => ({ id: entry._id, subject: entry.subject, code: entry.code, semester: entry.semester, field: entry.field, day: entry.day, startTime: entry.startTime, endTime: entry.endTime, room: entry.room })),
+      today,
+      todaysClasses: todaysClasses.map((entry) => ({ id: entry._id, subject: entry.subject, code: entry.code, semester: entry.semester, field: entry.field, day: entry.day, startTime: entry.startTime, endTime: entry.endTime, room: entry.room })),
+      nextClass: nextClass ? { id: nextClass._id, subject: nextClass.subject, code: nextClass.code, semester: nextClass.semester, field: nextClass.field, day: nextClass.day, startTime: nextClass.startTime, endTime: nextClass.endTime, room: nextClass.room } : null,
+    })
+  } catch (error) {
+    console.error('TEACHER TIMETABLE ERROR:', error)
+    res.status(500).json({ message: 'Unable to load timetable' })
   }
 }
 
