@@ -2,10 +2,13 @@ import express from 'express'
 import protect, { authorize } from '../middleware/authMiddleware.js'
 import {
   changeTeacherPassword,
+  createTeacherAssignment,
+  deleteTeacherAssignment,
   getAttendanceRoster,
   getAttendanceHistory,
   getAttendanceHistoryRecord,
   getTeacherDashboard,
+  getTeacherAssignments,
   getTeacherProfile,
   getTeacherSubjectById,
   getTeacherSubjects,
@@ -13,8 +16,10 @@ import {
   getTeacherStudents,
   getSessionalRoster,
   publishSessionalMarks,
+  publishTeacherAssignment,
   saveAttendance,
   saveSessionalMarks,
+  updateTeacherAssignment,
   updateTeacherProfile,
 } from '../controllers/teacherController.js'
 
@@ -33,6 +38,11 @@ router.post('/attendance', protect, authorize('teacher'), saveAttendance)
 router.get('/sessionals/roster', protect, authorize('teacher'), getSessionalRoster)
 router.post('/sessionals', protect, authorize('teacher'), saveSessionalMarks)
 router.put('/sessionals/publish', protect, authorize('teacher'), publishSessionalMarks)
+router.get('/assignments', protect, authorize('teacher'), getTeacherAssignments)
+router.post('/assignments', protect, authorize('teacher'), createTeacherAssignment)
+router.put('/assignments/:assignmentId', protect, authorize('teacher'), updateTeacherAssignment)
+router.delete('/assignments/:assignmentId', protect, authorize('teacher'), deleteTeacherAssignment)
+router.patch('/assignments/:assignmentId/publish', protect, authorize('teacher'), publishTeacherAssignment)
 router.put('/profile', protect, authorize('teacher'), updateTeacherProfile)
 router.put('/profile/password', protect, authorize('teacher'), changeTeacherPassword)
 

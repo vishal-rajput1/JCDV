@@ -19,6 +19,7 @@ import TeacherStudentDetails from './pages/teacher/TeacherStudentDetails'
 import TeacherAttendance from './pages/teacher/TeacherAttendance'
 import AttendanceHistory from './pages/teacher/AttendanceHistory'
 import TeacherSessionalMarks from './pages/teacher/TeacherSessionalMarks'
+import TeacherAssignments from './pages/teacher/TeacherAssignments'
 
 
 function StudentLayout() {
@@ -85,6 +86,7 @@ function TeacherLayout() {
             <Route path="attendance" element={<TeacherAttendance />} />
             <Route path="attendance/history" element={<AttendanceHistory />} />
             <Route path="marks" element={<TeacherSessionalMarks />} />
+            <Route path="assignments" element={<TeacherAssignments />} />
             <Route path="*" element={<Navigate to="dashboard" replace />} />
           </Routes>
         </div>

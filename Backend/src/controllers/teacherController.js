@@ -1,5 +1,6 @@
 import Attendance from '../models/Attendance.js'
 import AttendanceRecord from '../models/AttendanceRecord.js'
+import Assignment from '../models/Assignment.js'
 import bcrypt from 'bcryptjs'
 import { FIELDS } from '../constants/academic.js'
 import mongoose from 'mongoose'
@@ -548,6 +549,109 @@ export const publishSessionalMarks = async (req, res) => {
   } catch (error) {
     console.error('PUBLISH SESSIONAL MARKS ERROR:', error)
     res.status(500).json({ message: 'Unable to publish sessional marks' })
+  }
+}
+
+const serialiseAssignment = (assignment) => ({
+  id: assignment._id, title: assignment.title, description: assignment.description, subjectId: assignment.subjectAssignment,
+  subject: assignment.subject, code: assignment.code, semester: assignment.semester, field: assignment.field,
+  deadline: assignment.deadline.toISOString().slice(0, 10), attachmentUrl: assignment.attachmentUrl,
+  maximumMarks: assignment.maximumMarks, isPublished: assignment.isPublished, publishedAt: assignment.publishedAt,
+})
+
+const validateAssignmentValues = ({ title, description, deadline, attachmentUrl, maximumMarks }) => {
+  const parsedDeadline = parseAttendanceDate(deadline)
+  const marks = Number(maximumMarks)
+  if (!title?.trim() || !description?.trim() || !parsedDeadline || !Number.isFinite(marks) || marks < 1 || marks > 100) return null
+  if (attachmentUrl && !/^https?:\/\//i.test(attachmentUrl)) return null
+  return { title: title.trim(), description: description.trim(), deadline: parsedDeadline, attachmentUrl: attachmentUrl?.trim() || '', maximumMarks: marks }
+}
+
+export const getTeacherAssignments = async (req, res) => {
+  try {
+    const { subjectId, semester, field } = req.query
+    if (field && !FIELDS.includes(field)) return res.status(400).json({ message: 'Field must be CSE or AIML' })
+    if (semester && (!Number.isInteger(Number(semester)) || Number(semester) < 1)) return res.status(400).json({ message: 'Semester must be a positive whole number' })
+    const query = { teacher: req.user.id }
+    if (subjectId) {
+      if (!mongoose.isValidObjectId(subjectId)) return res.status(400).json({ message: 'Invalid subject ID' })
+      query.subjectAssignment = subjectId
+    }
+    if (semester) query.semester = Number(semester)
+    if (field) query.field = field
+    const assignments = await Assignment.find(query).sort({ deadline: 1, createdAt: -1 }).lean()
+    res.json(assignments.map(serialiseAssignment))
+  } catch (error) {
+    console.error('TEACHER ASSIGNMENTS ERROR:', error)
+    res.status(500).json({ message: 'Unable to load assignments' })
+  }
+}
+
+export const createTeacherAssignment = async (req, res) => {
+  try {
+    const { subjectId } = req.body
+    const values = validateAssignmentValues(req.body)
+    if (!values) return res.status(400).json({ message: 'Enter a title, description, valid deadline, optional attachment URL, and maximum marks from 1 to 100' })
+    const teacher = await User.findById(req.user.id).select('assignedSubjects')
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    const subject = getAssignedSubject(teacher, subjectId)
+    if (!subject) return res.status(403).json({ message: 'You are not assigned to this subject' })
+    const assignment = await Assignment.create({
+      teacher: teacher._id, subjectAssignment: subject._id, subject: subject.name, code: subject.code,
+      semester: subject.semester, field: subject.field, ...values,
+    })
+    res.status(201).json({ message: 'Assignment saved as a draft', assignment: serialiseAssignment(assignment) })
+  } catch (error) {
+    console.error('CREATE ASSIGNMENT ERROR:', error)
+    res.status(500).json({ message: 'Unable to create assignment' })
+  }
+}
+
+export const updateTeacherAssignment = async (req, res) => {
+  try {
+    const { assignmentId } = req.params
+    if (!mongoose.isValidObjectId(assignmentId)) return res.status(400).json({ message: 'Invalid assignment ID' })
+    const values = validateAssignmentValues(req.body)
+    if (!values) return res.status(400).json({ message: 'Enter a title, description, valid deadline, optional attachment URL, and maximum marks from 1 to 100' })
+    const teacher = await User.findById(req.user.id).select('assignedSubjects')
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    const subject = getAssignedSubject(teacher, req.body.subjectId)
+    if (!subject) return res.status(403).json({ message: 'You are not assigned to this subject' })
+    const assignment = await Assignment.findOneAndUpdate({ _id: assignmentId, teacher: teacher._id }, {
+      ...values, subjectAssignment: subject._id, subject: subject.name, code: subject.code, semester: subject.semester, field: subject.field,
+      isPublished: false, publishedAt: null,
+    }, { new: true, runValidators: true })
+    if (!assignment) return res.status(404).json({ message: 'Assignment not found' })
+    res.json({ message: 'Assignment updated as a draft', assignment: serialiseAssignment(assignment) })
+  } catch (error) {
+    console.error('UPDATE ASSIGNMENT ERROR:', error)
+    res.status(500).json({ message: 'Unable to update assignment' })
+  }
+}
+
+export const deleteTeacherAssignment = async (req, res) => {
+  try {
+    const { assignmentId } = req.params
+    if (!mongoose.isValidObjectId(assignmentId)) return res.status(400).json({ message: 'Invalid assignment ID' })
+    const assignment = await Assignment.findOneAndDelete({ _id: assignmentId, teacher: req.user.id })
+    if (!assignment) return res.status(404).json({ message: 'Assignment not found' })
+    res.json({ message: 'Assignment deleted' })
+  } catch (error) {
+    console.error('DELETE ASSIGNMENT ERROR:', error)
+    res.status(500).json({ message: 'Unable to delete assignment' })
+  }
+}
+
+export const publishTeacherAssignment = async (req, res) => {
+  try {
+    const { assignmentId } = req.params
+    if (!mongoose.isValidObjectId(assignmentId)) return res.status(400).json({ message: 'Invalid assignment ID' })
+    const assignment = await Assignment.findOneAndUpdate({ _id: assignmentId, teacher: req.user.id }, { isPublished: true, publishedAt: new Date() }, { new: true })
+    if (!assignment) return res.status(404).json({ message: 'Assignment not found' })
+    res.json({ message: 'Assignment published', assignment: serialiseAssignment(assignment) })
+  } catch (error) {
+    console.error('PUBLISH ASSIGNMENT ERROR:', error)
+    res.status(500).json({ message: 'Unable to publish assignment' })
   }
 }
 
