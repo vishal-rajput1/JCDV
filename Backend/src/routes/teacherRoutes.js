@@ -2,13 +2,16 @@ import express from 'express'
 import protect, { authorize } from '../middleware/authMiddleware.js'
 import {
   changeTeacherPassword,
+  createTeacherAnnouncement,
   createTeacherAssignment,
   deleteTeacherAssignment,
+  deleteTeacherAnnouncement,
   getAttendanceRoster,
   getAttendanceHistory,
   getAttendanceHistoryRecord,
   getTeacherDashboard,
   getTeacherAssignmentSubmissions,
+  getTeacherAnnouncements,
   getTeacherAssignments,
   getTeacherProfile,
   getTeacherSubjectById,
@@ -19,10 +22,12 @@ import {
   getSessionalRoster,
   publishSessionalMarks,
   publishTeacherAssignment,
+  publishTeacherAnnouncement,
   reviewAssignmentSubmission,
   saveAttendance,
   saveSessionalMarks,
   updateTeacherAssignment,
+  updateTeacherAnnouncement,
   updateTeacherProfile,
 } from '../controllers/teacherController.js'
 
@@ -49,6 +54,11 @@ router.patch('/assignments/:assignmentId/publish', protect, authorize('teacher')
 router.get('/assignments/:assignmentId/submissions', protect, authorize('teacher'), getTeacherAssignmentSubmissions)
 router.put('/submissions/:submissionId', protect, authorize('teacher'), reviewAssignmentSubmission)
 router.get('/timetable', protect, authorize('teacher'), getTeacherTimetable)
+router.get('/announcements', protect, authorize('teacher'), getTeacherAnnouncements)
+router.post('/announcements', protect, authorize('teacher'), createTeacherAnnouncement)
+router.put('/announcements/:announcementId', protect, authorize('teacher'), updateTeacherAnnouncement)
+router.delete('/announcements/:announcementId', protect, authorize('teacher'), deleteTeacherAnnouncement)
+router.patch('/announcements/:announcementId/publish', protect, authorize('teacher'), publishTeacherAnnouncement)
 router.put('/profile', protect, authorize('teacher'), updateTeacherProfile)
 router.put('/profile/password', protect, authorize('teacher'), changeTeacherPassword)
 

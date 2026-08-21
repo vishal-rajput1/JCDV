@@ -2,6 +2,7 @@ import Attendance from '../models/Attendance.js'
 import AttendanceRecord from '../models/AttendanceRecord.js'
 import Assignment from '../models/Assignment.js'
 import AssignmentSubmission from '../models/AssignmentSubmission.js'
+import Announcement from '../models/Announcement.js'
 import bcrypt from 'bcryptjs'
 import { FIELDS } from '../constants/academic.js'
 import mongoose from 'mongoose'
@@ -731,6 +732,108 @@ export const getTeacherTimetable = async (req, res) => {
   } catch (error) {
     console.error('TEACHER TIMETABLE ERROR:', error)
     res.status(500).json({ message: 'Unable to load timetable' })
+  }
+}
+
+const serialiseAnnouncement = (announcement) => ({
+  id: announcement._id, title: announcement.title, message: announcement.message, audience: announcement.audience,
+  subjectId: announcement.subjectAssignment, subject: announcement.subject, code: announcement.code,
+  semester: announcement.semester, field: announcement.field, publishDate: announcement.publishDate.toISOString().slice(0, 10),
+  isPublished: announcement.isPublished, publishedAt: announcement.publishedAt,
+})
+
+const getAnnouncementTarget = (teacher, values) => {
+  const { audience, subjectId, semester, field } = values
+  if (!['all', 'subject', 'semester', 'field'].includes(audience)) return null
+  if (audience === 'all') return { audience }
+  if (audience === 'subject') {
+    const subject = getAssignedSubject(teacher, subjectId)
+    if (!subject) return null
+    return { audience, subjectAssignment: subject._id, subject: subject.name, code: subject.code, semester: subject.semester, field: subject.field }
+  }
+  if (audience === 'semester') {
+    const numericSemester = Number(semester)
+    if (!Number.isInteger(numericSemester) || numericSemester < 1 || !teacher.assignedSubjects.some((subject) => subject.semester === numericSemester)) return null
+    return { audience, semester: numericSemester }
+  }
+  if (!FIELDS.includes(field) || !teacher.assignedSubjects.some((subject) => subject.field === field)) return null
+  return { audience, field }
+}
+
+const validateAnnouncementValues = ({ title, message, publishDate }) => {
+  const date = parseAttendanceDate(publishDate)
+  if (!title?.trim() || !message?.trim() || !date) return null
+  return { title: title.trim(), message: message.trim(), publishDate: date }
+}
+
+export const getTeacherAnnouncements = async (req, res) => {
+  try {
+    const announcements = await Announcement.find({ teacher: req.user.id }).sort({ publishDate: -1, createdAt: -1 }).lean()
+    res.json(announcements.map(serialiseAnnouncement))
+  } catch (error) {
+    console.error('TEACHER ANNOUNCEMENTS ERROR:', error)
+    res.status(500).json({ message: 'Unable to load announcements' })
+  }
+}
+
+export const createTeacherAnnouncement = async (req, res) => {
+  try {
+    const values = validateAnnouncementValues(req.body)
+    if (!values) return res.status(400).json({ message: 'Enter a title, message, and valid publish date' })
+    const teacher = await User.findById(req.user.id).select('assignedSubjects')
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    const target = getAnnouncementTarget(teacher, req.body)
+    if (!target) return res.status(400).json({ message: 'Choose a valid audience within your assigned subjects, semesters, or fields' })
+    const announcement = await Announcement.create({ teacher: teacher._id, ...values, ...target })
+    res.status(201).json({ message: 'Announcement saved as a draft', announcement: serialiseAnnouncement(announcement) })
+  } catch (error) {
+    console.error('CREATE ANNOUNCEMENT ERROR:', error)
+    res.status(500).json({ message: 'Unable to create announcement' })
+  }
+}
+
+export const updateTeacherAnnouncement = async (req, res) => {
+  try {
+    const { announcementId } = req.params
+    if (!mongoose.isValidObjectId(announcementId)) return res.status(400).json({ message: 'Invalid announcement ID' })
+    const values = validateAnnouncementValues(req.body)
+    if (!values) return res.status(400).json({ message: 'Enter a title, message, and valid publish date' })
+    const teacher = await User.findById(req.user.id).select('assignedSubjects')
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    const target = getAnnouncementTarget(teacher, req.body)
+    if (!target) return res.status(400).json({ message: 'Choose a valid audience within your assigned subjects, semesters, or fields' })
+    const announcement = await Announcement.findOneAndUpdate({ _id: announcementId, teacher: teacher._id }, { ...values, ...target, isPublished: false, publishedAt: null }, { new: true, runValidators: true })
+    if (!announcement) return res.status(404).json({ message: 'Announcement not found' })
+    res.json({ message: 'Announcement updated as a draft', announcement: serialiseAnnouncement(announcement) })
+  } catch (error) {
+    console.error('UPDATE ANNOUNCEMENT ERROR:', error)
+    res.status(500).json({ message: 'Unable to update announcement' })
+  }
+}
+
+export const deleteTeacherAnnouncement = async (req, res) => {
+  try {
+    const { announcementId } = req.params
+    if (!mongoose.isValidObjectId(announcementId)) return res.status(400).json({ message: 'Invalid announcement ID' })
+    const announcement = await Announcement.findOneAndDelete({ _id: announcementId, teacher: req.user.id })
+    if (!announcement) return res.status(404).json({ message: 'Announcement not found' })
+    res.json({ message: 'Announcement deleted' })
+  } catch (error) {
+    console.error('DELETE ANNOUNCEMENT ERROR:', error)
+    res.status(500).json({ message: 'Unable to delete announcement' })
+  }
+}
+
+export const publishTeacherAnnouncement = async (req, res) => {
+  try {
+    const { announcementId } = req.params
+    if (!mongoose.isValidObjectId(announcementId)) return res.status(400).json({ message: 'Invalid announcement ID' })
+    const announcement = await Announcement.findOneAndUpdate({ _id: announcementId, teacher: req.user.id }, { isPublished: true, publishedAt: new Date() }, { new: true })
+    if (!announcement) return res.status(404).json({ message: 'Announcement not found' })
+    res.json({ message: 'Announcement published', announcement: serialiseAnnouncement(announcement) })
+  } catch (error) {
+    console.error('PUBLISH ANNOUNCEMENT ERROR:', error)
+    res.status(500).json({ message: 'Unable to publish announcement' })
   }
 }
 
