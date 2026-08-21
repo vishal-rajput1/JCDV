@@ -71,6 +71,18 @@ const sessionalMarksSchema = new mongoose.Schema(
       type: String,
       enum: ['CSE', 'AIML'],
     },
+
+    teacher: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+
+    isPublished: {
+      type: Boolean,
+      default: false,
+    },
+
+    publishedAt: Date,
   },
   {
     timestamps: true,

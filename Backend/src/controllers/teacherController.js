@@ -391,6 +391,166 @@ export const saveAttendance = async (req, res) => {
   }
 }
 
+export const getAttendanceHistory = async (req, res) => {
+  try {
+    const { subjectId, semester, field, date: dateValue } = req.query
+    if (field && !FIELDS.includes(field)) return res.status(400).json({ message: 'Field must be CSE or AIML' })
+    if (semester && (!Number.isInteger(Number(semester)) || Number(semester) < 1)) {
+      return res.status(400).json({ message: 'Semester must be a positive whole number' })
+    }
+
+    const query = { teacher: req.user.id }
+    if (subjectId) {
+      if (!mongoose.isValidObjectId(subjectId)) return res.status(400).json({ message: 'Invalid subject ID' })
+      const teacher = await User.findById(req.user.id).select('assignedSubjects')
+      if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+      if (!getAssignedSubject(teacher, subjectId)) return res.status(403).json({ message: 'You are not assigned to this subject' })
+      query.subjectAssignment = subjectId
+    }
+    if (semester) query.semester = Number(semester)
+    if (field) query.field = field
+    if (dateValue) {
+      const date = parseAttendanceDate(dateValue)
+      if (!date) return res.status(400).json({ message: 'Invalid attendance date' })
+      query.date = date
+    }
+
+    const records = await AttendanceRecord.find(query).select('subject code semester field date entries').sort({ date: -1 }).lean()
+    res.json(records.map((record) => {
+      const present = record.entries.filter((entry) => entry.present).length
+      return {
+        id: record._id, date: record.date.toISOString().slice(0, 10), subject: record.subject, code: record.code,
+        semester: record.semester, field: record.field, total: record.entries.length, present,
+        absent: record.entries.length - present, attendance: record.entries.length ? Math.round((present / record.entries.length) * 100) : null,
+      }
+    }))
+  } catch (error) {
+    console.error('ATTENDANCE HISTORY ERROR:', error)
+    res.status(500).json({ message: 'Unable to load attendance history' })
+  }
+}
+
+export const getAttendanceHistoryRecord = async (req, res) => {
+  try {
+    const { recordId } = req.params
+    if (!mongoose.isValidObjectId(recordId)) return res.status(400).json({ message: 'Invalid attendance record ID' })
+    const record = await AttendanceRecord.findOne({ _id: recordId, teacher: req.user.id })
+      .populate('entries.student', 'name rollNo email').lean()
+    if (!record) return res.status(404).json({ message: 'Attendance record not found' })
+
+    res.json({
+      id: record._id, subject: record.subject, code: record.code, semester: record.semester, field: record.field,
+      date: record.date.toISOString().slice(0, 10),
+      entries: record.entries.map((entry) => ({ id: entry.student?._id, name: entry.student?.name || 'Removed student', rollNo: entry.student?.rollNo, email: entry.student?.email, present: entry.present })),
+    })
+  } catch (error) {
+    console.error('ATTENDANCE HISTORY DETAIL ERROR:', error)
+    res.status(500).json({ message: 'Unable to load attendance record' })
+  }
+}
+
+export const getSessionalRoster = async (req, res) => {
+  try {
+    const { subjectId } = req.query
+    const teacher = await User.findById(req.user.id).select('assignedSubjects')
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    const subject = getAssignedSubject(teacher, subjectId)
+    if (!subject) return res.status(403).json({ message: 'You are not assigned to this subject' })
+
+    const students = await User.find({ role: 'student', semester: subject.semester, field: subject.field })
+      .select('name rollNo email').sort({ name: 1 }).lean()
+    const marks = await SessionalMarks.find({
+      student: { $in: students.map((student) => student._id) }, subject: subject.name, semester: subject.semester,
+      $or: [{ field: subject.field }, { field: { $exists: false } }],
+    }).lean()
+    const marksByStudent = new Map(marks.map((record) => [String(record.student), record]))
+
+    res.json({
+      subject: { id: subject._id, name: subject.name, code: subject.code, semester: subject.semester, field: subject.field },
+      students: students.map((student) => {
+        const record = marksByStudent.get(String(student._id))
+        return {
+          id: student._id, name: student.name, rollNo: student.rollNo, email: student.email,
+          sessional1: record?.sessional1 ?? null, sessional2: record?.sessional2 ?? null,
+          sessional3: record?.sessional3 ?? null, assignment: record?.assignment ?? null,
+          isPublished: record?.isPublished === true,
+        }
+      }),
+    })
+  } catch (error) {
+    console.error('SESSIONAL ROSTER ERROR:', error)
+    res.status(500).json({ message: 'Unable to load sessional marks roster' })
+  }
+}
+
+const normaliseMark = (value, maximum) => {
+  if (value === '' || value === null || value === undefined) return null
+  const number = Number(value)
+  return Number.isFinite(number) && number >= 0 && number <= maximum ? number : null
+}
+
+export const saveSessionalMarks = async (req, res) => {
+  try {
+    const { subjectId, entries } = req.body
+    if (!Array.isArray(entries)) return res.status(400).json({ message: 'Sessional mark entries are required' })
+    const teacher = await User.findById(req.user.id).select('assignedSubjects')
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    const subject = getAssignedSubject(teacher, subjectId)
+    if (!subject) return res.status(403).json({ message: 'You are not assigned to this subject' })
+
+    const roster = await User.find({ role: 'student', semester: subject.semester, field: subject.field }).select('_id').lean()
+    const rosterIds = new Set(roster.map((student) => String(student._id)))
+    const validEntries = entries.length === roster.length && entries.every((entry) =>
+      mongoose.isValidObjectId(entry.studentId) && rosterIds.has(String(entry.studentId)) &&
+      normaliseMark(entry.sessional1, 20) !== null && normaliseMark(entry.sessional2, 20) !== null &&
+      normaliseMark(entry.sessional3, 20) !== null && normaliseMark(entry.assignment, 10) !== null
+    )
+    if (!validEntries || new Set(entries.map((entry) => String(entry.studentId))).size !== roster.length) {
+      return res.status(400).json({ message: 'Enter valid marks for every authorised student' })
+    }
+
+    await Promise.all(entries.map(async (entry) => {
+      const query = { student: entry.studentId, subject: subject.name, semester: subject.semester, $or: [{ field: subject.field }, { field: { $exists: false } }] }
+      const update = {
+        $set: {
+          sessional1: normaliseMark(entry.sessional1, 20), sessional2: normaliseMark(entry.sessional2, 20),
+          sessional3: normaliseMark(entry.sessional3, 20), assignment: normaliseMark(entry.assignment, 10),
+          field: subject.field, teacher: teacher._id, isPublished: false, publishedAt: null,
+        },
+        $setOnInsert: { student: entry.studentId, subject: subject.name, semester: subject.semester },
+      }
+      await SessionalMarks.findOneAndUpdate(query, update, { upsert: true, new: true, runValidators: true })
+    }))
+    res.json({ message: 'Marks saved as a draft. Publish them when ready.' })
+  } catch (error) {
+    console.error('SAVE SESSIONAL MARKS ERROR:', error)
+    res.status(500).json({ message: 'Unable to save sessional marks' })
+  }
+}
+
+export const publishSessionalMarks = async (req, res) => {
+  try {
+    const { subjectId } = req.body
+    const teacher = await User.findById(req.user.id).select('assignedSubjects')
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    const subject = getAssignedSubject(teacher, subjectId)
+    if (!subject) return res.status(403).json({ message: 'You are not assigned to this subject' })
+    const students = await User.find({ role: 'student', semester: subject.semester, field: subject.field }).select('_id').lean()
+    if (!students.length) return res.status(400).json({ message: 'There are no enrolled students to publish marks for' })
+    const marksQuery = {
+      student: { $in: students.map((student) => student._id) }, subject: subject.name, semester: subject.semester,
+      $or: [{ field: subject.field }, { field: { $exists: false } }],
+    }
+    const savedCount = await SessionalMarks.countDocuments(marksQuery)
+    if (savedCount !== students.length) return res.status(400).json({ message: 'Save marks for every student before publishing them' })
+    await SessionalMarks.updateMany(marksQuery, { $set: { field: subject.field, teacher: teacher._id, isPublished: true, publishedAt: new Date() } })
+    res.json({ message: 'Marks published to the Student Portal' })
+  } catch (error) {
+    console.error('PUBLISH SESSIONAL MARKS ERROR:', error)
+    res.status(500).json({ message: 'Unable to publish sessional marks' })
+  }
+}
+
 export const updateTeacherProfile = async (req, res) => {
   try {
     const allowedFields = ['name', 'email', 'phone', 'designation', 'qualification']

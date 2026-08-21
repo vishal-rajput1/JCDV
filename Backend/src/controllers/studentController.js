@@ -84,6 +84,7 @@ export const getSessionalMarks = async (req, res) => {
     const marks = await SessionalMarks.find({
       student: req.user.id,
       semester: student.semester,
+      isPublished: { $ne: false },
     })
       .sort({
         subject: 1,
