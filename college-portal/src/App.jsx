@@ -9,6 +9,8 @@ import Dashboard from './pages/student/Dashboard'
 import Attendance from './pages/student/Attendance'
 import SessionalMarks from './pages/student/SessionalMarks'
 import UniversityResult from './pages/student/UniversityResult'
+import StudentAssignments from './pages/student/Assignments'
+import StudentAnnouncements from './pages/student/Announcements'
 import TeacherSidebar from './components/TeacherSidebar'
 import TeacherDashboard from './pages/teacher/TeacherDashboard'
 import TeacherProfile from './pages/teacher/TeacherProfile'
@@ -61,6 +63,8 @@ function StudentLayout() {
               path="/university-result"
               element={<UniversityResult />}
             />
+            <Route path="/assignments" element={<StudentAssignments />} />
+            <Route path="/announcements" element={<StudentAnnouncements />} />
 
           </Routes>
 

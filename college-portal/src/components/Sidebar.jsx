@@ -7,6 +7,8 @@ const nav = [
   ['Attendance', '/student/attendance', 'calendar'],
   ['Sessional Marks', '/student/sessionals', 'chart'],
   ['University Result', '/student/university-result', 'book'],
+  ['Assignments', '/student/assignments', 'book'],
+  ['Announcements', '/student/announcements', 'bell'],
 ]
 
 function Sidebar() {
