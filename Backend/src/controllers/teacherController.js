@@ -1,4 +1,5 @@
 import Attendance from '../models/Attendance.js'
+import AttendanceRecord from '../models/AttendanceRecord.js'
 import bcrypt from 'bcryptjs'
 import { FIELDS } from '../constants/academic.js'
 import mongoose from 'mongoose'
@@ -6,6 +7,17 @@ import SessionalMarks from '../models/SessionalMarks.js'
 import User from '../models/User.js'
 
 const subjectKey = (subject) => `${subject.code}-${subject.semester}-${subject.field}`
+
+const parseAttendanceDate = (value) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null
+  const date = new Date(`${value}T00:00:00.000Z`)
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : date
+}
+
+const getAssignedSubject = (teacher, subjectId) => {
+  if (!mongoose.isValidObjectId(subjectId)) return null
+  return teacher.assignedSubjects.id(subjectId)
+}
 
 export const getTeacherDashboard = async (req, res) => {
   try {
@@ -274,6 +286,108 @@ export const getTeacherStudentById = async (req, res) => {
   } catch (error) {
     console.error('TEACHER STUDENT DETAIL ERROR:', error)
     res.status(500).json({ message: 'Unable to load student details' })
+  }
+}
+
+export const getAttendanceRoster = async (req, res) => {
+  try {
+    const { subjectId, date: dateValue } = req.query
+    const date = parseAttendanceDate(dateValue)
+    if (!date) return res.status(400).json({ message: 'A valid attendance date is required' })
+
+    const teacher = await User.findById(req.user.id).select('assignedSubjects')
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    const subject = getAssignedSubject(teacher, subjectId)
+    if (!subject) return res.status(403).json({ message: 'You are not assigned to this subject' })
+
+    const [students, record] = await Promise.all([
+      User.find({ role: 'student', semester: subject.semester, field: subject.field })
+        .select('name rollNo email').sort({ name: 1 }).lean(),
+      AttendanceRecord.findOne({ teacher: teacher._id, subjectAssignment: subject._id, date }).lean(),
+    ])
+    const statusByStudent = new Map((record?.entries || []).map((entry) => [String(entry.student), entry.present]))
+
+    res.json({
+      subject: { id: subject._id, name: subject.name, code: subject.code, semester: subject.semester, field: subject.field },
+      saved: Boolean(record),
+      students: students.map((student) => ({
+        id: student._id,
+        name: student.name,
+        rollNo: student.rollNo,
+        email: student.email,
+        present: statusByStudent.has(String(student._id)) ? statusByStudent.get(String(student._id)) : null,
+      })),
+    })
+  } catch (error) {
+    console.error('ATTENDANCE ROSTER ERROR:', error)
+    res.status(500).json({ message: 'Unable to load attendance roster' })
+  }
+}
+
+export const saveAttendance = async (req, res) => {
+  try {
+    const { subjectId, date: dateValue, entries } = req.body
+    const date = parseAttendanceDate(dateValue)
+    if (!date || !Array.isArray(entries)) return res.status(400).json({ message: 'A date and attendance entries are required' })
+
+    const teacher = await User.findById(req.user.id).select('assignedSubjects')
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    const subject = getAssignedSubject(teacher, subjectId)
+    if (!subject) return res.status(403).json({ message: 'You are not assigned to this subject' })
+
+    const roster = await User.find({ role: 'student', semester: subject.semester, field: subject.field }).select('_id').lean()
+    const rosterIds = new Set(roster.map((student) => String(student._id)))
+    const validEntries = entries.length === roster.length && entries.every((entry) =>
+      mongoose.isValidObjectId(entry.studentId) && rosterIds.has(String(entry.studentId)) && typeof entry.present === 'boolean'
+    )
+    const uniqueEntryIds = new Set(entries.map((entry) => String(entry.studentId)))
+    if (!validEntries || uniqueEntryIds.size !== roster.length) {
+      return res.status(400).json({ message: 'Attendance must include one valid status for every authorised student' })
+    }
+
+    const existingRecord = await AttendanceRecord.findOne({ teacher: teacher._id, subjectAssignment: subject._id, date })
+    const previousStatus = new Map((existingRecord?.entries || []).map((entry) => [String(entry.student), entry.present]))
+    const normalisedEntries = entries.map((entry) => ({ student: entry.studentId, present: entry.present }))
+
+    if (existingRecord) {
+      existingRecord.entries = normalisedEntries
+      await existingRecord.save()
+    } else {
+      await AttendanceRecord.create({
+        teacher: teacher._id, subjectAssignment: subject._id, subject: subject.name, code: subject.code,
+        semester: subject.semester, field: subject.field, date, entries: normalisedEntries,
+      })
+    }
+
+    await Promise.all(normalisedEntries.map(async (entry) => {
+      const prior = previousStatus.get(String(entry.student))
+      const aggregate = await Attendance.findOne({
+        student: entry.student, subject: subject.name, code: subject.code, semester: subject.semester,
+        $or: [{ field: subject.field }, { field: { $exists: false } }],
+      })
+      if (!aggregate) {
+        await Attendance.create({ student: entry.student, subject: subject.name, code: subject.code, semester: subject.semester, field: subject.field, present: entry.present ? 1 : 0, total: 1 })
+        return
+      }
+      if (typeof prior === 'boolean') {
+        aggregate.present = Math.max(0, aggregate.present + (entry.present ? 1 : 0) - (prior ? 1 : 0))
+      } else {
+        aggregate.present += entry.present ? 1 : 0
+        aggregate.total += 1
+      }
+      aggregate.field = subject.field
+      await aggregate.save()
+    }))
+
+    const present = normalisedEntries.filter((entry) => entry.present).length
+    res.status(existingRecord ? 200 : 201).json({
+      message: existingRecord ? 'Attendance updated successfully' : 'Attendance saved successfully',
+      summary: { total: normalisedEntries.length, present, absent: normalisedEntries.length - present },
+    })
+  } catch (error) {
+    if (error?.code === 11000) return res.status(409).json({ message: 'Attendance was updated concurrently. Please reload and try again.' })
+    console.error('SAVE ATTENDANCE ERROR:', error)
+    res.status(500).json({ message: 'Unable to save attendance' })
   }
 }
 
