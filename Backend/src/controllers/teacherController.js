@@ -935,6 +935,42 @@ export const reviewTeacherRequest = async (req, res) => {
   }
 }
 
+export const getTeacherSettings = async (req, res) => {
+  try {
+    const teacher = await User.findById(req.user.id).select('name email phone notificationsEnabled').lean()
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    res.json({ name: teacher.name, email: teacher.email, phone: teacher.phone || '', notificationsEnabled: teacher.notificationsEnabled !== false })
+  } catch (error) {
+    console.error('TEACHER SETTINGS ERROR:', error)
+    res.status(500).json({ message: 'Unable to load settings' })
+  }
+}
+
+export const updateTeacherSettings = async (req, res) => {
+  try {
+    const allowed = ['name', 'email', 'phone', 'notificationsEnabled']
+    const updates = Object.fromEntries(allowed.filter((field) => Object.hasOwn(req.body, field)).map((field) => [field, req.body[field]]))
+    if (!Object.keys(updates).length) return res.status(400).json({ message: 'No valid settings changes were provided' })
+    if (Object.hasOwn(updates, 'name')) {
+      if (typeof updates.name !== 'string' || !updates.name.trim()) return res.status(400).json({ message: 'Name is required' })
+      updates.name = updates.name.trim()
+    }
+    if (Object.hasOwn(updates, 'email')) {
+      if (typeof updates.email !== 'string' || !updates.email.trim()) return res.status(400).json({ message: 'Email is required' })
+      updates.email = updates.email.trim().toLowerCase()
+    }
+    if (Object.hasOwn(updates, 'phone')) updates.phone = typeof updates.phone === 'string' ? updates.phone.trim() : ''
+    if (Object.hasOwn(updates, 'notificationsEnabled') && typeof updates.notificationsEnabled !== 'boolean') return res.status(400).json({ message: 'Notification preference must be true or false' })
+    const teacher = await User.findByIdAndUpdate(req.user.id, updates, { new: true, runValidators: true }).select('name email phone notificationsEnabled')
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' })
+    res.json({ message: 'Settings updated successfully', settings: { name: teacher.name, email: teacher.email, phone: teacher.phone || '', notificationsEnabled: teacher.notificationsEnabled !== false } })
+  } catch (error) {
+    if (error?.code === 11000) return res.status(400).json({ message: 'That email address is already in use' })
+    console.error('UPDATE TEACHER SETTINGS ERROR:', error)
+    res.status(500).json({ message: 'Unable to update settings' })
+  }
+}
+
 export const updateTeacherProfile = async (req, res) => {
   try {
     const allowedFields = ['name', 'email', 'phone', 'designation', 'qualification']

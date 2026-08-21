@@ -12,6 +12,7 @@ const navigation = [
   ['Attendance', '/teacher/attendance', 'calendar'],
   ['Sessional Marks', '/teacher/marks', 'chart'],
   ['My Profile', '/teacher/profile', 'user'],
+  ['Settings', '/teacher/settings', 'grid'],
 ]
 
 function TeacherSidebar() {

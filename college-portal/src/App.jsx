@@ -25,6 +25,7 @@ import TeacherTimetable from './pages/teacher/TeacherTimetable'
 import TeacherAnnouncements from './pages/teacher/TeacherAnnouncements'
 import TeacherNotifications from './pages/teacher/TeacherNotifications'
 import TeacherRequests from './pages/teacher/TeacherRequests'
+import TeacherSettings from './pages/teacher/TeacherSettings'
 
 
 function StudentLayout() {
@@ -97,6 +98,7 @@ function TeacherLayout() {
             <Route path="announcements" element={<TeacherAnnouncements />} />
             <Route path="notifications" element={<TeacherNotifications />} />
             <Route path="requests" element={<TeacherRequests />} />
+            <Route path="settings" element={<TeacherSettings />} />
             <Route path="*" element={<Navigate to="dashboard" replace />} />
           </Routes>
         </div>

@@ -34,6 +34,8 @@ import {
   updateTeacherAnnouncement,
   updateTeacherProfile,
   getTeacherRequests,
+  getTeacherSettings,
+  updateTeacherSettings,
 } from '../controllers/teacherController.js'
 
 const router = express.Router()
@@ -69,6 +71,8 @@ router.put('/notifications/read-all', protect, authorize('teacher'), markAllTeac
 router.put('/notifications/:notificationId/read', protect, authorize('teacher'), markTeacherNotificationRead)
 router.get('/requests', protect, authorize('teacher'), getTeacherRequests)
 router.put('/requests/:requestId', protect, authorize('teacher'), reviewTeacherRequest)
+router.get('/settings', protect, authorize('teacher'), getTeacherSettings)
+router.put('/settings', protect, authorize('teacher'), updateTeacherSettings)
 router.put('/profile', protect, authorize('teacher'), updateTeacherProfile)
 router.put('/profile/password', protect, authorize('teacher'), changeTeacherPassword)
 

@@ -68,6 +68,11 @@ const userSchema = new mongoose.Schema(
     designation: String,
     qualification: String,
 
+    notificationsEnabled: {
+      type: Boolean,
+      default: true,
+    },
+
     assignedSubjects: [
       {
         name: { type: String, required: true, trim: true },
