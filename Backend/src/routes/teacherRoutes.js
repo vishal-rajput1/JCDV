@@ -12,6 +12,7 @@ import {
   getTeacherDashboard,
   getTeacherAssignmentSubmissions,
   getTeacherAnnouncements,
+  getTeacherNotifications,
   getTeacherAssignments,
   getTeacherProfile,
   getTeacherSubjectById,
@@ -23,6 +24,8 @@ import {
   publishSessionalMarks,
   publishTeacherAssignment,
   publishTeacherAnnouncement,
+  markAllTeacherNotificationsRead,
+  markTeacherNotificationRead,
   reviewAssignmentSubmission,
   saveAttendance,
   saveSessionalMarks,
@@ -59,6 +62,9 @@ router.post('/announcements', protect, authorize('teacher'), createTeacherAnnoun
 router.put('/announcements/:announcementId', protect, authorize('teacher'), updateTeacherAnnouncement)
 router.delete('/announcements/:announcementId', protect, authorize('teacher'), deleteTeacherAnnouncement)
 router.patch('/announcements/:announcementId/publish', protect, authorize('teacher'), publishTeacherAnnouncement)
+router.get('/notifications', protect, authorize('teacher'), getTeacherNotifications)
+router.put('/notifications/read-all', protect, authorize('teacher'), markAllTeacherNotificationsRead)
+router.put('/notifications/:notificationId/read', protect, authorize('teacher'), markTeacherNotificationRead)
 router.put('/profile', protect, authorize('teacher'), updateTeacherProfile)
 router.put('/profile/password', protect, authorize('teacher'), changeTeacherPassword)
 

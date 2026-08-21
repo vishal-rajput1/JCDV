@@ -7,6 +7,7 @@ const navigation = [
   ['Students', '/teacher/students', 'users'],
   ['Timetable', '/teacher/timetable', 'calendar'],
   ['Announcements', '/teacher/announcements', 'bell'],
+  ['Notifications', '/teacher/notifications', 'bell'],
   ['Attendance', '/teacher/attendance', 'calendar'],
   ['Sessional Marks', '/teacher/marks', 'chart'],
   ['My Profile', '/teacher/profile', 'user'],

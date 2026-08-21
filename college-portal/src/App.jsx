@@ -23,6 +23,7 @@ import TeacherAssignments from './pages/teacher/TeacherAssignments'
 import AssignmentSubmissions from './pages/teacher/AssignmentSubmissions'
 import TeacherTimetable from './pages/teacher/TeacherTimetable'
 import TeacherAnnouncements from './pages/teacher/TeacherAnnouncements'
+import TeacherNotifications from './pages/teacher/TeacherNotifications'
 
 
 function StudentLayout() {
@@ -93,6 +94,7 @@ function TeacherLayout() {
             <Route path="assignments/:assignmentId" element={<AssignmentSubmissions />} />
             <Route path="timetable" element={<TeacherTimetable />} />
             <Route path="announcements" element={<TeacherAnnouncements />} />
+            <Route path="notifications" element={<TeacherNotifications />} />
             <Route path="*" element={<Navigate to="dashboard" replace />} />
           </Routes>
         </div>

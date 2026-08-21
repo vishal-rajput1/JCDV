@@ -8,6 +8,7 @@ import { FIELDS } from '../constants/academic.js'
 import mongoose from 'mongoose'
 import SessionalMarks from '../models/SessionalMarks.js'
 import TimetableEntry from '../models/TimetableEntry.js'
+import Notification from '../models/Notification.js'
 import User from '../models/User.js'
 
 const subjectKey = (subject) => `${subject.code}-${subject.semester}-${subject.field}`
@@ -834,6 +835,44 @@ export const publishTeacherAnnouncement = async (req, res) => {
   } catch (error) {
     console.error('PUBLISH ANNOUNCEMENT ERROR:', error)
     res.status(500).json({ message: 'Unable to publish announcement' })
+  }
+}
+
+export const getTeacherNotifications = async (req, res) => {
+  try {
+    const notifications = await Notification.find({ recipient: req.user.id }).sort({ createdAt: -1 }).lean()
+    res.json(notifications.map((notification) => ({
+      id: notification._id, type: notification.type, title: notification.title, message: notification.message,
+      isRead: notification.isRead, createdAt: notification.createdAt, referenceType: notification.referenceType, referenceId: notification.referenceId,
+    })))
+  } catch (error) {
+    console.error('TEACHER NOTIFICATIONS ERROR:', error)
+    res.status(500).json({ message: 'Unable to load notifications' })
+  }
+}
+
+export const markTeacherNotificationRead = async (req, res) => {
+  try {
+    const { notificationId } = req.params
+    if (!mongoose.isValidObjectId(notificationId)) return res.status(400).json({ message: 'Invalid notification ID' })
+    const notification = await Notification.findOneAndUpdate(
+      { _id: notificationId, recipient: req.user.id }, { isRead: true, readAt: new Date() }, { new: true }
+    )
+    if (!notification) return res.status(404).json({ message: 'Notification not found' })
+    res.json({ message: 'Notification marked as read' })
+  } catch (error) {
+    console.error('MARK NOTIFICATION READ ERROR:', error)
+    res.status(500).json({ message: 'Unable to update notification' })
+  }
+}
+
+export const markAllTeacherNotificationsRead = async (req, res) => {
+  try {
+    await Notification.updateMany({ recipient: req.user.id, isRead: false }, { isRead: true, readAt: new Date() })
+    res.json({ message: 'All notifications marked as read' })
+  } catch (error) {
+    console.error('MARK ALL NOTIFICATIONS READ ERROR:', error)
+    res.status(500).json({ message: 'Unable to update notifications' })
   }
 }
 
