@@ -13,7 +13,7 @@ import StudentRequest from '../models/StudentRequest.js'
 import User from '../models/User.js'
 
 const subjectKey = (subject) => `${subject.code}-${subject.semester}-${subject.field}`
-
+const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const parseAttendanceDate = (value) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return null
   const date = new Date(`${value}T00:00:00.000Z`)
@@ -52,6 +52,14 @@ export const getTeacherDashboard = async (req, res) => {
     const present = attendance.reduce((total, record) => total + record.present, 0)
     const total = attendance.reduce((sum, record) => sum + record.total, 0)
 
+    const today = WEEKDAYS[(new Date().getDay() + 6) % 7]
+    const [todayClasses, pendingAssignments, announcements, activity] = await Promise.all([
+      TimetableEntry.find({ teacher: teacher._id, day: today }).sort({ startTime: 1 }).select('subject code semester field startTime endTime room').lean(),
+      Assignment.countDocuments({ teacher: teacher._id, isPublished: false }),
+      Announcement.find({ teacher: teacher._id }).sort({ createdAt: -1 }).limit(4).select('title audience subject semester field isPublished publishDate').lean(),
+      Notification.find({ recipient: teacher._id }).sort({ createdAt: -1 }).limit(5).select('type title message isRead createdAt').lean(),
+    ])
+
     res.json({
       teacher: {
         name: teacher.name,
@@ -62,11 +70,12 @@ export const getTeacherDashboard = async (req, res) => {
         subjects: subjects.length,
         students: studentIds.length,
         attendance: total ? Math.round((present / total) * 100) : null,
+        pendingAssignments,
       },
       subjects: subjects.map((subject) => ({ ...subject, id: subjectKey(subject) })),
-      todayClasses: [],
-      announcements: [],
-      activity: [],
+      todayClasses: todayClasses.map((entry) => ({ id: entry._id, subject: entry.subject, code: entry.code, semester: entry.semester, field: entry.field, startTime: entry.startTime, endTime: entry.endTime, room: entry.room })),
+      announcements: announcements.map((announcement) => ({ id: announcement._id, title: announcement.title, audience: announcement.audience, subject: announcement.subject, semester: announcement.semester, field: announcement.field, isPublished: announcement.isPublished, publishDate: announcement.publishDate.toISOString().slice(0, 10) })),
+      activity: activity.map((notification) => ({ id: notification._id, type: notification.type, title: notification.title, message: notification.message, isRead: notification.isRead, createdAt: notification.createdAt })),
     })
   } catch (error) {
     console.error('TEACHER DASHBOARD ERROR:', error)
@@ -713,7 +722,6 @@ export const reviewAssignmentSubmission = async (req, res) => {
   }
 }
 
-const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export const getTeacherTimetable = async (req, res) => {
   try {

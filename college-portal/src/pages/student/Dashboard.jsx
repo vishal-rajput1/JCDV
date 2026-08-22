@@ -70,8 +70,8 @@ function Dashboard() {
           )
         }
 
-        setSubjects(attendanceData.attendance || [])
-        setMarks(marksData.marks || [])
+        setSubjects(attendanceData || [])
+        setMarks(marksData || [])
       } catch (error) {
         console.error(
           'Dashboard data error:',

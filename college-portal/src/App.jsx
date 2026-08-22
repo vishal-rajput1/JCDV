@@ -2,9 +2,10 @@ import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
-
+import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 
+import AdminDashboard from './pages/admin/AdminDashboard'
 import Dashboard from './pages/student/Dashboard'
 import Attendance from './pages/student/Attendance'
 import SessionalMarks from './pages/student/SessionalMarks'
@@ -12,6 +13,7 @@ import UniversityResult from './pages/student/UniversityResult'
 import StudentAssignments from './pages/student/Assignments'
 import StudentAnnouncements from './pages/student/Announcements'
 import StudentRequests from './pages/student/Requests'
+import AcademicSetup from './pages/admin/AcademicSetup'
 import TeacherSidebar from './components/TeacherSidebar'
 import TeacherDashboard from './pages/teacher/TeacherDashboard'
 import TeacherProfile from './pages/teacher/TeacherProfile'
@@ -113,30 +115,6 @@ function TeacherLayout() {
   )
 }
 
-function TeacherRoute({ children }) {
-  try {
-    const user = JSON.parse(localStorage.getItem('user') || 'null')
-    return user?.role === 'teacher' ? children : <Navigate to="/login" replace />
-  } catch {
-    return <Navigate to="/login" replace />
-  }
-}
-
-
-function AdminDashboard() {
-  return (
-    <div className="min-h-screen bg-slate-50 p-10">
-      <h1 className="text-3xl font-bold">
-        Admin Dashboard ⚙️
-      </h1>
-
-      <p className="mt-2 text-muted">
-        Admin portal coming next.
-      </p>
-    </div>
-  )
-}
-
 
 function App() {
   return (
@@ -152,22 +130,42 @@ function App() {
 
         {/* Student */}
         <Route
-          path="/student/*"
-          element={<StudentLayout />}
-        />
+  path="/student/*"
+  element={
+    <ProtectedRoute roles={['student']}>
+      <StudentLayout />
+    </ProtectedRoute>
+  }
+/>
 
         {/* Teacher */}
         <Route
-          path="/teacher/*"
-          element={<TeacherRoute><TeacherLayout /></TeacherRoute>}
-        />
+  path="/teacher/*"
+  element={
+    <ProtectedRoute roles={['teacher']}>
+      <TeacherLayout />
+    </ProtectedRoute>
+  }
+/>
 
         {/* Admin */}
-        <Route
-          path="/admin/dashboard"
-          element={<AdminDashboard />}
-        />
+<Route
+  path="/admin/dashboard"
+  element={
+    <ProtectedRoute roles={['admin']}>
+      <AdminDashboard />
+    </ProtectedRoute>
+  }
+/>
 
+<Route
+  path="/admin/academic-setup"
+  element={
+    <ProtectedRoute roles={['admin']}>
+      <AcademicSetup />
+    </ProtectedRoute>
+  }
+/>
       </Routes>
 
     </BrowserRouter>

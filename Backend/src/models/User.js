@@ -52,14 +52,8 @@ const userSchema = new mongoose.Schema(
       type: Number,
     },
 
-    // Kept for existing student records only. New teacher functionality uses field.
-    section: {
-      type: String,
-    },
-
     field: {
       type: String,
-      enum: ['CSE', 'AIML'],
       uppercase: true,
       trim: true,
     },

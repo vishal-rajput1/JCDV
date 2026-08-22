@@ -48,7 +48,7 @@ function TeacherDashboard() {
     return <div className="grid min-h-96 place-items-center text-sm text-muted">Loading your teaching workspace…</div>
   }
 
-  const { teacher, stats, subjects, todayClasses } = dashboard
+  const { teacher, stats, subjects, todayClasses, announcements, activity } = dashboard
   const actions = [
     ['Mark Attendance', '/teacher/attendance', 'calendar'],
     ['Enter Sessional Marks', '/teacher/marks', 'chart'],
@@ -71,6 +71,7 @@ function TeacherDashboard() {
         <StatCard label="Assigned subjects" value={stats.subjects} helper="Subjects allocated to you" icon="book" tone="bg-brand-600" />
         <StatCard label="Total students" value={stats.students} helper="Across assigned Semester + Field groups" icon="users" tone="bg-violet-600" />
         <StatCard label="Attendance summary" value={stats.attendance === null ? '—' : `${stats.attendance}%`} helper="Based on recorded attendance" icon="chart" tone="bg-emerald-600" />
+        <StatCard label="Pending assignments" value={stats.pendingAssignments} helper="Drafts awaiting publication" icon="book" tone="bg-amber-500" />
       </div>
 
       <section className="mt-8">
@@ -87,8 +88,12 @@ function TeacherDashboard() {
         </section>
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm xl:col-span-2">
           <div className="border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-ink">Today’s classes</h2><p className="mt-1 text-xs text-muted">Your schedule for today.</p></div>
-          {todayClasses.length ? <div /> : <EmptyPanel icon="calendar" title="No classes scheduled" text="When your timetable is available, today’s classes will appear here." />}
+          {todayClasses.length ? <div className="divide-y divide-slate-100">{todayClasses.map((entry) => <div key={entry.id} className="px-5 py-4"><p className="text-sm font-semibold text-slate-800">{entry.startTime} – {entry.endTime} · {entry.subject}</p><p className="mt-1 text-xs text-muted">{entry.code} · Semester {entry.semester} · {entry.field} · Room {entry.room}</p></div>)}</div> : <EmptyPanel icon="calendar" title="No classes scheduled" text="When your timetable is available, today’s classes will appear here." />}
         </section>
+      </div>
+      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-ink">Recent announcements</h2></div>{announcements.length ? <div className="divide-y divide-slate-100">{announcements.map((announcement) => <div key={announcement.id} className="px-5 py-4"><div className="flex justify-between gap-3"><p className="text-sm font-semibold text-slate-800">{announcement.title}</p><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${announcement.isPublished ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{announcement.isPublished ? 'Published' : 'Draft'}</span></div><p className="mt-1 text-xs text-muted">{announcement.publishDate}</p></div>)}</div> : <EmptyPanel icon="bell" title="No announcements yet" text="Your created announcements will appear here." />}</section>
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-ink">Recent activity</h2></div>{activity.length ? <div className="divide-y divide-slate-100">{activity.map((item) => <div key={item.id} className="px-5 py-4"><p className="text-sm font-semibold text-slate-800">{item.title}</p><p className="mt-1 line-clamp-2 text-xs text-muted">{item.message}</p><p className="mt-1 text-[11px] text-slate-400">{new Date(item.createdAt).toLocaleString()}</p></div>)}</div> : <EmptyPanel icon="bell" title="No recent activity" text="New submissions, requests, and notices will appear here." />}</section>
       </div>
     </div>
   )

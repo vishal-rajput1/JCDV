@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { setAuth } from '../store/authStore'
 
 function Login() {
   const navigate = useNavigate()
@@ -95,11 +96,8 @@ function Login() {
         alert(data.message || 'Login failed')
         return
       }
-
       // Save authentication information
-      localStorage.setItem('token', data.token)
-      localStorage.setItem('user', JSON.stringify(data.user))
-
+      setAuth(data.token, data.user)
       // Redirect according to actual backend role
       if (data.user.role === 'student') {
         navigate('/student/')
